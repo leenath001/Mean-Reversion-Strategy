@@ -4,27 +4,15 @@ import yfinance as yf
 # terminal func to run while in clamshell, ensure amphetaime is on
 
 # macair
-# caffeinate -i python3 "/Users/leenath/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Code/Algos/SMA_execution.py"
+# caffeinate -i python3 "{filepath}"
 
 # macmini
-# caffeinate -i python3 "/Users/nlee/Desktop/Code/Algos/SMA_execution.py"
-
-# Other strats : continual put, scalp, pair trading, arbitrage? 
-
-''' INVERVAL PARAMETERS
-    "1m" Max 7 days, only for recent data
-    "2m" Max 60 days
-    "5m" Max 60 days
-    "15m" Max 60 days
-    "30m" Max 60 days 
-    "60m" Max 730 days (~2 years)
-    "90m" Max 60 days
-    "1d" '''
+# caffeinate -i python3 ""{filepath}""
 
 #x = SMA.SMA_backtest('TSLA',4,2025,'ov')
 # (TSLA,9)
 
 x = SMA_functions.SMA_tradingfunc('SPY',4,'mr')
 print()
-print(x[0])
-print(x[1])
+print(x[0]) # dataframe contains time-series data containing algorithmic actions, buy/hold quotes, and strategy values
+print(x[1]) # trading stats  (alpha and beta are asset-relative, not marked to overall market)
