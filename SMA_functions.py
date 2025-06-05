@@ -69,7 +69,7 @@ def SMA_backtest(ticker,window,year,type):
 
         if P == 0 and delta1 == False and delta2 == True: #buy @ open
             P = 1
-            valuevec[i] = (valuevec[i-1] * (1 +  (CminO[i])/open.iloc[i,0])) + np.random.randn() * 0.02  
+            valuevec[i] = (valuevec[i-1] * (1 +  (CminO[i])/open.iloc[i,0])) + (np.random.randn() * 0.02) - .35  
             actionvec[i] = 'B'
 
         elif P == 1 and delta1 == False and delta2 == False: # hold, account for slippage
@@ -78,7 +78,7 @@ def SMA_backtest(ticker,window,year,type):
 
         elif P == 1 and delta1 == True and delta2 == False or P == 1 and (1 + (close.iloc[i-1,0]-open.iloc[i-1,0])/open.iloc[i-1,0]) <=.99:
             P = 0 
-            valuevec[i] = (valuevec[i-1] * (1 + (open.iloc[i,0]-close.iloc[i-1,0])/close.iloc[i-1,0])) +  np.random.randn() * 0.02  
+            valuevec[i] = (valuevec[i-1] * (1 + (open.iloc[i,0]-close.iloc[i-1,0])/close.iloc[i-1,0])) + (np.random.randn() * 0.02) - .35
             actionvec[i] = 'S'
 
         elif P == 0 and delta1 == True and delta2 == True: # do nothing
