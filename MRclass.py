@@ -17,26 +17,35 @@ class MeanReversion:
     
     # initialization
     def __init__(self, ticker, window, alo):
-        warnings.filterwarnings("ignore")
+        warnings.filterwarnings("ignore") 
         pd.set_option('display.max_rows', None)
         pd.set_option('display.max_columns', None)
         self.ticker = ticker
         self.window = window
         self.ib = IB()
         self.ib.connect('127.0.0.1', 4002, clientId=1)
-
-        self.logs = pd.DataFrame(columns=['Time', 'Strat','BH', 'Signal', 'Action'])
         self.alo = alo
         self.position = 0
-        new_row = {
-            'Time': datetime.now(),
-            'Strat': self.getsnap(),
-            'BH': self.getsnap(),
-            'Zsc': 0,
-            'Action': 'NA'
-        }       
-        self.logs = pd.concat([self.logs, pd.DataFrame([new_row])], ignore_index=True)
+        start = self.getsnap()
+        self.logs(start,start,0,'NA')
         
+    # logging method
+    def logs(self,strat,bh,signal,action):
+        log = {
+            'Time' : [],
+            'Strat' : [],
+            'BH' : [],
+            'Zsc' : [],
+            'Action' : []      
+            }
+        
+        log['Time'].append(datetime.now())
+        log['Strat'].append(strat)
+        log['BH'].append(bh)
+        log['Zsc'].append(signal)
+        log['Action'].append(action)
+
+        self.maslog = log
 
     # data collection
     def data_collection(self):
@@ -44,11 +53,11 @@ class MeanReversion:
         self.secret_key="cVPzOWmEz4bXrbUlm139qLQJwVaYnKuAYBdjDhcM"
 
         client = StockHistoricalDataClient(
-            api_key="PKYOJZNEMFQPBCSGY3MC",
-            secret_key="cVPzOWmEz4bXrbUlm139qLQJwVaYnKuAYBdjDhcM",
+            api_key=self.api_key,
+            secret_key=self.secret_key,
         )
 
-        start = (datetime.now(timezone.utc) - timedelta(minutes=11))
+        start = (datetime.now(timezone.utc) - timedelta(minutes=self.window + 1))
         end = datetime.now(timezone.utc)      
 
         request_params = StockBarsRequest(
@@ -61,40 +70,39 @@ class MeanReversion:
 
         # historical data
         bars = client.get_stock_bars(request_params)
-        self.data = bars.df.iloc[:,:4]
+        data = bars.df.iloc[:,:4]
     
-    # calculate rolling mean and stdev
-    def mean_stdev(self):
-        self.data['MA'] = self.data['close'].rolling(self.window).mean().shift(1).round(2)
-        self.data['SDev'] = self.data['close'].rolling(self.window).std().shift(1).round(2)
+        # calculate rolling mean and stdev
+        data['MA'] = data['close'].rolling(self.window).mean().shift(1).round(2)
+        data['SDev'] = data['close'].rolling(self.window).std().shift(1).round(2)
 
         # storing rolling m/sd
-        self.MA = self.data['MA'].iloc[-1]
-        self.sd = self.data['SDev'].iloc[-1]
+        self.MA = data['MA'].iloc[-1]
+        self.sd = data['SDev'].iloc[-1]
 
     def getsnap(self):
         BASE_URL = 'https://paper-api.alpaca.markets/v2' 
         api = tradeapi.REST(self.api_key, self.secret_key, BASE_URL, api_version='v2')
         quote = api.get_latest_quotes(self.ticker)
-        return quote
+        return quote[self.ticker].ap
     
     # calc z score
     def z_score(self):
-        xi = self.getsnap()
-        zsc = (xi - self.MA) / self.sd
-        return zsc
+        self.xi = self.getsnap()
+        self.zsc = (self.xi - self.MA) / self.sd
 
     # ID trading signal/execution
     def signal_exe(self):
-        if self.z_score() <= -1 and self.position == 0: #buy
+        self.z = self.z_score()
+        if self.z <= -1 and self.position == 0: #buy
             self.sig = 'BUY'
             self.BUY()
         
-        elif self.z_score() < 0 and self.position == 1: # hold
+        elif self.z < 0 and self.position == 1: # hold
             self.sig = 'HOLD'
             self.HOLD()
 
-        elif self.z_score() >= 0 and self.position == 1: #sell 
+        elif self.z >= 0 and self.position == 1: #sell 
             self.sig = 'SELL'
             self.SELL()
 
@@ -121,91 +129,57 @@ class MeanReversion:
     # trading functions that log actions, ACCOUNT FOR FEES
     def BUY(self):
         self.executor()
-        self.buyprice = self.getsnap()
-        new_row = {
-            'Time': datetime.now(),
-            'Strat': self.buyprice,
-            'BH': self.getsnap(),
-            'Zsc': self.z_score(),
-            'Action': self.sig
-        }       
-        self.logs = pd.concat([self.logs, pd.DataFrame([new_row])], ignore_index=True)
+        self.buyprice = self.xi
+        self.logs(self.buyprice,self.buyprice,self.z,self.sig)
         print('Buying @ {}'.format(self.buyprice))
         print("Order Status:", self.trade.orderStatus.status)
-        time.sleep(5)
+        time.sleep(6)
 
     def SELL(self):
         self.executor()
-        if self.logs.iloc[-1,4] == 'BUY':
-            sellprice = self.logs.iloc[-1,1] * self.getsnap()/self.buyprice
-        elif self.logs.iloc[-1,4] == 'HOLD':
-            sellprice = self.logs.iloc[-1,1] * self.getsnap()/self.newhold
-        new_row = {
-            'Time': datetime.now(),
-            'Strat': sellprice,
-            'BH': self.getsnap(),
-            'Zsc': self.z_score(),
-            'Action': self.sig
-        }       
-        self.logs = pd.concat([self.logs, pd.DataFrame([new_row])], ignore_index=True)
-        print('Selling @ {}'.format(sellprice))
+        if self.maslog['Action'][-1] == 'BUY':
+            sellprice = self.maslog['Strat'][-1] * self.xi/self.buyprice
+        elif self.maslog['Action'][-1] == 'HOLD':
+            sellprice = self.maslog['Strat'][-1] * self.xi/self.newhold
+        self.logs(sellprice,self.xi,self.z,self.sig)
+        print('Selling @ {}'.format(self.xi))
         print("Order Status:", self.trade.orderStatus.status)
-        time.sleep(10)
-
+        time.sleep(30)
+        
     def HOLD(self):
-        if self.logs.iloc[-1,4] == 'BUY':
-            holdprice = self.logs.iloc[-1,1] * self.getsnap()/self.buyprice
-            self.newhold = self.getsnap()
-        elif self.logs.iloc[-1,4] == 'HOLD':
-            holdprice = self.logs.iloc[-1,1] * self.getsnap()/self.newhold
-            self.newhold = self.getsnap()
-        new_row = {
-            'Time': datetime.now(),
-            'Strat': holdprice,
-            'BH': self.getsnap(),
-            'Zsc': self.z_score(),
-            'Action': self.sig
-        }       
-        self.logs = pd.concat([self.logs, pd.DataFrame([new_row])], ignore_index=True)
-        time.sleep(5)
-
+        if self.maslog['Action'][-1] == 'BUY':
+            holdprice = self.maslog['Strat'][-1] * self.xi/self.buyprice
+            self.newhold = self.xi
+        elif self.maslog['Action'][-1] == 'HOLD':
+            holdprice = self.maslog['Strat'][-1] * self.xi/self.newhold
+            self.newhold = self.xi
+        self.logs(holdprice,self.xi,self.z,self.sig)
+        print('Holding @ {}'.format(self.newhold))
+        time.sleep(6)
+        
     def NONE(self):
-        new_row = {
-            'Time': datetime.now(),
-            'Strat': self.logs.iloc[-1,1],
-            'BH': self.getsnap(),
-            'Zsc': self.z_score(),
-            'Action': self.sig
-        }       
-        self.logs = pd.concat([self.logs, pd.DataFrame([new_row])], ignore_index=True)
-        time.sleep(10)
+        self.logs(self.maslog['Strat'][-1],self.xi,self.z,self.sig)
+        print('No Action')
+        time.sleep(30)
 
     def CTRLC(self):
         if self.position == 1: 
-            pr = self.getsnap()
             contract = Stock(self.ticker,'SMART','USD')
             order = MarketOrder('SELL',self.alo)
             trade = self.ib.placeOrder(contract,order)
-            if self.logs.iloc[-1,4] == 'BUY':
-                sellprice = self.logs.iloc[-1,1] * pr/self.buyprice
-            elif self.logs.iloc[-1,4] == 'HOLD':
-                sellprice = self.logs.iloc[-1,1] * pr/self.newhold
-            
-            new_row = {
-                'Time': datetime.now(),
-                'Strat': sellprice,
-                'BH': self.getsnap(),
-                'Zsc': self.z_score(),
-                'Action': self.sig
-            }       
-            self.logs = pd.concat([self.logs, pd.DataFrame([new_row])], ignore_index=True)
-            print('Selling @ {}'.format(sellprice))
+            if self.maslog['Action'][-1] == 'BUY':
+                sellprice = self.maslog['Strat'][-1] * self.xi/self.buyprice
+            elif self.maslog['Action'][-1] == 'HOLD':
+                sellprice = self.maslog['Strat'][-1] * self.xi/self.newhold
+            self.logs(sellprice,self.xi,self.z,self.sig)
+            print('Selling @ {}'.format(self.xi))
             print("Order Status:", trade.orderStatus.status)
 
     def plots(self):
+        self.maslog = pd.DataFrame(self.maslog).set_index('Time')
         plt.figure()
-        plt.plot(self.logs.index,self.logs.loc[:,'Strat'], label = 'Strategy', color = 'green')
-        plt.plot(self.logs.index,self.logs.loc[:,'BH'], label = 'Buy & Hold', color = 'orange')
+        plt.plot(self.maslog.index,self.maslog.loc[:,'Strat'], label = 'Strategy', color = 'green')
+        plt.plot(self.maslog.index,self.maslog.loc[:,'BH'], label = 'Buy & Hold', color = 'orange')
         plt.xlabel('Time')
         plt.ylabel('Value')
         plt.xticks(rotation = 30)
@@ -214,18 +188,18 @@ class MeanReversion:
         plt.show()
 
     def stratstats(self):
-        beta = np.cov(self.logs.loc[:,'BH'],self.logs.loc[:,'Strat'])/np.var(self.logs.loc[:,'BH'])
+        beta = np.cov(self.maslog.loc[:,'BH'],self.maslog.loc[:,'Strat'])/np.var(self.maslog.loc[:,'BH'])
         beta = beta[0,1]
-        pctg = (self.logs.iloc[-1,1] - self.logs.iloc[0,1])/self.logs.iloc[0,1]
-        bhpct = (self.logs.iloc[-1,2] - self.logs.iloc[0,2])/self.logs.iloc[0,2]
+        pctg = (self.maslog.iloc[-1,1] - self.maslog.iloc[0,1])/self.maslog.iloc[0,1]
+        bhpct = (self.maslog.iloc[-1,2] - self.maslog.iloc[0,2])/self.maslog.iloc[0,2]
         risk_free = .042
         alpha = pctg - (risk_free + beta * (bhpct - risk_free))
         
         text = '\n'.join((
         '                  ',
         'Asset : {}, {}'.format(self.ticker),
-        'Trading Periods : {}'.format(len(self.logs)),
-        'P&L : ${}'.format((self.logs.iloc[-1,1] - self.logs.iloc[0,1]).round(2)),
+        'Trading Periods : {}'.format(len(self.maslog)),
+        'P&L : ${}'.format((self.maslog.iloc[-1,1] - self.maslog.iloc[0,1]).round(2)),
         'Growth : {}%'.format(pctg.round(2)),
         'Buy/Hold Growth : {}%'.format(bhpct.round(2)),
         'Beta (asset-relative) : {}'.format(beta.round(2)),
@@ -233,18 +207,18 @@ class MeanReversion:
         '                  '
         ))
 
-        return text, self.logs
+        return text, self.maslog
     
+    # TRADING LOGIC #
     def run(self):
         try:
             while True:
                 self.data_collection()
-                self.mean_stdev()
                 self.signal_exe()
         except KeyboardInterrupt:
             print("Exiting gracefully. Closing open positions...")
             self.CTRLC()
         finally:
-            x = self.stratstats
+            x = self.stratstats()
             print(x[0],x[1])
             self.plots()
