@@ -26,31 +26,29 @@ class MeanReversion:
         self.ib.connect('127.0.0.1', 4002, clientId=1)
         self.alo = alo
         self.position = 0
+        self.api_key="PKYOJZNEMFQPBCSGY3MC"
+        self.secret_key="cVPzOWmEz4bXrbUlm139qLQJwVaYnKuAYBdjDhcM"
         start = self.getsnap()
-        self.logs(start,start,0,'NA')
-        
-    # logging method
-    def logs(self,strat,bh,signal,action):
-        log = {
+        self.maslog = {
             'Time' : [],
             'Strat' : [],
             'BH' : [],
             'Zsc' : [],
             'Action' : []      
             }
+        self.logs(start,start,0,'NA')
         
-        log['Time'].append(datetime.now())
-        log['Strat'].append(strat)
-        log['BH'].append(bh)
-        log['Zsc'].append(signal)
-        log['Action'].append(action)
-
-        self.maslog = log
+    # logging method
+    def logs(self,strat,bh,signal,action):
+        
+        self.maslog['Time'].append(datetime.now())
+        self.maslog['Strat'].append(strat)
+        self.maslog['BH'].append(bh)
+        self.maslog['Zsc'].append(signal)
+        self.maslog['Action'].append(action)
 
     # data collection
     def data_collection(self):
-        self.api_key="PKYOJZNEMFQPBCSGY3MC"
-        self.secret_key="cVPzOWmEz4bXrbUlm139qLQJwVaYnKuAYBdjDhcM"
 
         client = StockHistoricalDataClient(
             api_key=self.api_key,
@@ -90,6 +88,7 @@ class MeanReversion:
     def z_score(self):
         self.xi = self.getsnap()
         self.zsc = (self.xi - self.MA) / self.sd
+        return self.zsc
 
     # ID trading signal/execution
     def signal_exe(self):
