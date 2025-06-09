@@ -55,7 +55,7 @@ class MeanReversion:
             secret_key=self.secret_key,
         )
 
-        start = (datetime.now(timezone.utc) - timedelta(minutes=self.window + 1))
+        start = (datetime.now(timezone.utc) - timedelta(minutes=self.window + 5))
         end = datetime.now(timezone.utc)      
 
         request_params = StockBarsRequest(
@@ -130,6 +130,8 @@ class MeanReversion:
         self.executor()
         self.buyprice = self.xi
         self.logs(self.buyprice,self.buyprice,self.z,self.sig)
+        print()
+        print('Price : {}, Z : {}'.format(round(self.xi,2),round(self.z,2)))
         print('Buying @ {}'.format(self.buyprice))
         print("Order Status:", self.trade.orderStatus.status)
         time.sleep(6)
@@ -141,6 +143,8 @@ class MeanReversion:
         elif self.maslog['Action'][-1] == 'HOLD':
             sellprice = self.maslog['Strat'][-1] * self.xi/self.newhold
         self.logs(sellprice,self.xi,self.z,self.sig)
+        print()
+        print('Price : {}, Z : {}'.format(round(self.xi,2),round(self.z,2)))
         print('Selling @ {}'.format(self.xi))
         print("Order Status:", self.trade.orderStatus.status)
         time.sleep(30)
@@ -153,11 +157,15 @@ class MeanReversion:
             holdprice = self.maslog['Strat'][-1] * self.xi/self.newhold
             self.newhold = self.xi
         self.logs(holdprice,self.xi,self.z,self.sig)
+        print()
+        print('Price : {}, Z : {}'.format(round(self.xi,2),round(self.z,2)))
         print('Holding @ {}'.format(self.newhold))
         time.sleep(6)
         
     def NONE(self):
         self.logs(self.maslog['Strat'][-1],self.xi,self.z,self.sig)
+        print()
+        print('Price : {}, Z : {}'.format(round(self.xi,2),round(self.z,2)))
         print('No Action')
         time.sleep(30)
 
@@ -175,7 +183,6 @@ class MeanReversion:
             print("Order Status:", trade.orderStatus.status)
 
     def plots(self):
-        self.maslog = pd.DataFrame(self.maslog).set_index('Time')
         plt.figure()
         plt.plot(self.maslog.index,self.maslog.loc[:,'Strat'], label = 'Strategy', color = 'green')
         plt.plot(self.maslog.index,self.maslog.loc[:,'BH'], label = 'Buy & Hold', color = 'orange')
@@ -196,7 +203,7 @@ class MeanReversion:
         
         text = '\n'.join((
         '                  ',
-        'Asset : {}, {}'.format(self.ticker),
+        'Asset : {}'.format(self.ticker),
         'Trading Periods : {}'.format(len(self.maslog)),
         'P&L : ${}'.format((self.maslog.iloc[-1,1] - self.maslog.iloc[0,1]).round(2)),
         'Growth : {}%'.format(pctg.round(2)),
@@ -218,6 +225,7 @@ class MeanReversion:
             print("Exiting gracefully. Closing open positions...")
             self.CTRLC()
         finally:
+            self.maslog = pd.DataFrame(self.maslog,index=self.maslog['Time'])
             x = self.stratstats()
             print(x[0],x[1])
             self.plots()
