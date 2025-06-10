@@ -13,6 +13,8 @@ from alpaca.data.historical import StockHistoricalDataClient
 from datetime import timezone
 import time
 
+# LOGGING NOT WORKING CORRECTLY!
+
 class MeanReversion:
     
     # initialization
@@ -135,12 +137,12 @@ class MeanReversion:
     def BUY(self):
         self.executor()
         self.buyprice = self.xi
-        self.logs(self.buyprice,self.buyprice,self.z,self.sig)
+        self.logs(self.maslog['Strat'][-1],self.buyprice,self.z,self.sig)
         print()
         print('Price : {}, Z : {}'.format(round(self.xi,2),round(self.z,2)))
         print('Buying @ {}'.format(self.buyprice))
         print("Order Status:", self.trade.orderStatus.status)
-        time.sleep(6)
+        time.sleep(2)
 
     def SELL(self):
         self.executor()
@@ -153,7 +155,7 @@ class MeanReversion:
         print('Price : {}, Z : {}'.format(round(self.xi,2),round(self.z,2)))
         print('Selling @ {}'.format(self.xi))
         print("Order Status:", self.trade.orderStatus.status)
-        time.sleep(30)
+        time.sleep(10)
         
     def HOLD(self): 
         if self.maslog['Action'][-1] == 'BUY':
@@ -166,7 +168,7 @@ class MeanReversion:
         print()
         print('Price : {}, Z : {}'.format(round(self.xi,2),round(self.z,2)))
         print('Holding @ {}'.format(self.newhold))
-        time.sleep(6)
+        time.sleep(2)
 
     def shortexecutor(self):
         if self.sig == 'SELLSH':
@@ -182,25 +184,25 @@ class MeanReversion:
     def SELLSH(self):
         self.shortexecutor()
         self.shortprice = self.xi
-        self.logs(self.shortprice,self.shortprice,self.z,self.sig)
+        self.logs(self.maslog['Strat'][-1],self.shortprice,self.z,self.sig)
         print()
         print('Price : {}, Z : {}'.format(round(self.xi,2),round(self.z,2)))
         print('Opening Short @ {}'.format(self.shortprice))
         print("Order Status:", self.trade.orderStatus.status)
-        time.sleep(6)
+        time.sleep(2)
 
     def BUYSH(self):
         self.shortexecutor()
         if self.maslog['Action'][-1] == 'SELLSH':
-            closedprice = self.maslog['Strat'][-1] * (1+(self.shortprice - self.xi)/self.shortprice)
+            closedprice = self.maslog['Strat'][-1] * (1+((self.shortprice - self.xi)/self.shortprice))
         elif self.maslog['Action'][-1] == 'HOLDSH':
-            closedprice = self.maslog['Strat'][-1] * (1+(self.shortprice - self.xi)/self.newholdsh)
+            closedprice = self.maslog['Strat'][-1] * (1+((self.shortprice - self.xi)/self.newholdsh))
         self.logs(closedprice,self.xi,self.z,self.sig)
         print()
         print('Price : {}, Z : {}'.format(round(self.xi,2),round(self.z,2)))
         print('Closing Short @ {}'.format(self.xi))
         print("Order Status:", self.trade.orderStatus.status)
-        time.sleep(30)
+        time.sleep(10)
         
     def HOLDSH(self): 
         if self.maslog['Action'][-1] == 'SELLSH':
@@ -213,14 +215,14 @@ class MeanReversion:
         print()
         print('Price : {}, Z : {}'.format(round(self.xi,2),round(self.z,2)))
         print('Holding Short @ {}'.format(self.newholdsh))
-        time.sleep(6)
+        time.sleep(2)
         
     def NONE(self):
         self.logs(self.maslog['Strat'][-1],self.xi,self.z,self.sig)
         print()
         print('Price : {}, Z : {}'.format(round(self.xi,2),round(self.z,2)))
         print('No Action')
-        time.sleep(30)
+        time.sleep(10)
 
     def CTRLC(self):
         if self.position == 1: 
