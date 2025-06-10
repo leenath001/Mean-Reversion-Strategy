@@ -241,9 +241,9 @@ class MeanReversion:
             order = MarketOrder('BUY',self.alo)
             trade = self.ib.placeOrder(contract,order)
             if self.maslog['Action'][-1] == 'SELLSH':
-                closedprice = self.maslog['Strat'][-1] * (self.shortprice - self.xi)/self.shortprice
+                closedprice = self.maslog['Strat'][-1] * (1 + ((self.shortprice - self.xi)/self.shortprice))
             elif self.maslog['Action'][-1] == 'HOLDSH':
-                closedprice = self.maslog['Strat'][-1] * (self.shortprice - self.xi)/self.newholdsh
+                closedprice = self.maslog['Strat'][-1] *  (1 + ((self.shortprice - self.xi)/self.newholdsh))
             self.logs(closedprice,self.xi,self.z,'CLOSE')
             print('Closing Short @ {}'.format(self.xi))
             print("Order Status:", trade.orderStatus.status)
