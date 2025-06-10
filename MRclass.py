@@ -26,6 +26,7 @@ class MeanReversion:
         self.ib.connect('127.0.0.1', 4002, clientId=1)
         self.alo = alo
         self.position = 0
+        self.position2 = 0
         self.api_key="PKYOJZNEMFQPBCSGY3MC"
         self.secret_key="cVPzOWmEz4bXrbUlm139qLQJwVaYnKuAYBdjDhcM"
         start = self.getsnap()
@@ -93,7 +94,7 @@ class MeanReversion:
     # ID trading signal/execution
     def signal_exe(self):
         self.z = self.z_score()
-        if self.z <= -1 and self.position == 0: #buy
+        if self.z <= -1 and self.position == 0 and self.position2 == 0: #buy
             self.sig = 'BUY'
             self.BUY()
         
@@ -105,17 +106,22 @@ class MeanReversion:
             self.sig = 'SELL'
             self.SELL()
 
-        else: 
+        elif self.z >= 1 and self.position == 0 and self.position2 == 0: #sell short
+            self.sig = 'SELLSH'
+            self.SELLSH()
+        
+        if self.z > 0 and self.position2 == 1: # hold short
+            self.sig = 'HOLDSH'
+            self.HOLDSH()
+
+        elif self.z <= 0 and self.position2 == 1: #buy back short 
+            self.sig = 'BUYSH'
+            self.BUYSH()
+
+        elif -1 < self.z < 1 and self.position == 0 and self.position2 == 0: 
             self.sig = 'NA'
             self.NONE()
-            
-        ''' Short stuff
-        elif self.zsc >= 1 and self.position == 0: #sell short
-            self.sig = 'SH'
-        elif self.zsc <= 0 and self.position == 1: #close short
-            self.sig = 'C'
-        '''
-
+        
     def executor(self):
         if self.sig == 'BUY':
             self.position = 1
@@ -149,7 +155,7 @@ class MeanReversion:
         print("Order Status:", self.trade.orderStatus.status)
         time.sleep(30)
         
-    def HOLD(self):
+    def HOLD(self): 
         if self.maslog['Action'][-1] == 'BUY':
             holdprice = self.maslog['Strat'][-1] * self.xi/self.buyprice
             self.newhold = self.xi
@@ -160,6 +166,53 @@ class MeanReversion:
         print()
         print('Price : {}, Z : {}'.format(round(self.xi,2),round(self.z,2)))
         print('Holding @ {}'.format(self.newhold))
+        time.sleep(6)
+
+    def shortexecutor(self):
+        if self.sig == 'SELLSH':
+            self.position2 = 1
+            order = MarketOrder('SELL',self.alo)
+        elif self.sig == 'BUYSH':
+            self.position2 = 0
+            order = MarketOrder('BUY',self.alo)
+        contract = Stock(self.ticker,'SMART','USD')
+        self.trade = self.ib.placeOrder(contract,order)
+
+    # trading functions that log actions, ACCOUNT FOR FEES
+    def SELLSH(self):
+        self.shortexecutor()
+        self.shortprice = self.xi
+        self.logs(self.shortprice,self.shortprice,self.z,self.sig)
+        print()
+        print('Price : {}, Z : {}'.format(round(self.xi,2),round(self.z,2)))
+        print('Opening Short @ {}'.format(self.shortprice))
+        print("Order Status:", self.trade.orderStatus.status)
+        time.sleep(6)
+
+    def BUYSH(self):
+        self.shortexecutor()
+        if self.maslog['Action'][-1] == 'SELLSH':
+            closedprice = self.maslog['Strat'][-1] * (1+(self.shortprice - self.xi)/self.shortprice)
+        elif self.maslog['Action'][-1] == 'HOLDSH':
+            closedprice = self.maslog['Strat'][-1] * (1+(self.shortprice - self.xi)/self.newholdsh)
+        self.logs(closedprice,self.xi,self.z,self.sig)
+        print()
+        print('Price : {}, Z : {}'.format(round(self.xi,2),round(self.z,2)))
+        print('Closing Short @ {}'.format(self.xi))
+        print("Order Status:", self.trade.orderStatus.status)
+        time.sleep(30)
+        
+    def HOLDSH(self): 
+        if self.maslog['Action'][-1] == 'SELLSH':
+            holdprice = self.maslog['Strat'][-1] * (1+(self.shortprice - self.xi)/self.shortprice)
+            self.newholdsh = self.xi
+        elif self.maslog['Action'][-1] == 'HOLDSH':
+            holdprice = self.maslog['Strat'][-1] * (1+(self.shortprice - self.xi)/self.newholdsh)
+            self.newholdsh = self.xi
+        self.logs(holdprice,self.xi,self.z,self.sig)
+        print()
+        print('Price : {}, Z : {}'.format(round(self.xi,2),round(self.z,2)))
+        print('Holding Short @ {}'.format(self.newholdsh))
         time.sleep(6)
         
     def NONE(self):
@@ -178,8 +231,19 @@ class MeanReversion:
                 sellprice = self.maslog['Strat'][-1] * self.xi/self.buyprice
             elif self.maslog['Action'][-1] == 'HOLD':
                 sellprice = self.maslog['Strat'][-1] * self.xi/self.newhold
-            self.logs(sellprice,self.xi,self.z,self.sig)
+            self.logs(sellprice,self.xi,self.z,'CLOSE')
             print('Selling @ {}'.format(self.xi))
+            print("Order Status:", trade.orderStatus.status)
+        elif self.position2 == 1:
+            contract = Stock(self.ticker,'SMART','USD')
+            order = MarketOrder('BUY',self.alo)
+            trade = self.ib.placeOrder(contract,order)
+            if self.maslog['Action'][-1] == 'SELLSH':
+                closedprice = self.maslog['Strat'][-1] * (self.shortprice - self.xi)/self.shortprice
+            elif self.maslog['Action'][-1] == 'HOLDSH':
+                closedprice = self.maslog['Strat'][-1] * (self.shortprice - self.xi)/self.newholdsh
+            self.logs(closedprice,self.xi,self.z,'CLOSE')
+            print('Closing Short @ {}'.format(self.xi))
             print("Order Status:", trade.orderStatus.status)
 
     def plots(self):
@@ -213,7 +277,7 @@ class MeanReversion:
         '                  '
         ))
 
-        return text, self.maslog
+        return self.maslog, text
     
     # TRADING LOGIC #
     def run(self):
