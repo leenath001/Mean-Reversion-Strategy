@@ -48,7 +48,7 @@ class MeanReversion:
     def logs(self,strat,bh,signal,action):
         
         self.maslog['Time'].append(datetime.now())
-        self.maslog['Strat'].append(strat)
+        self.maslog['Strat'].append(round(strat,2))
         self.maslog['BH'].append(bh)
         self.maslog['Zsc'].append(signal)
         self.maslog['Action'].append(action)
@@ -274,7 +274,7 @@ class MeanReversion:
         '                  ',
         'Asset : {}'.format(self.ticker),
         'Trading Periods : {}'.format(len(self.maslog)),
-        'P&L : ${}'.format((self.maslog.iloc[-1,1] - self.maslog.iloc[0,1]).round(2)),
+        'P&L : ${}'.format(self.alo*(self.maslog.iloc[-1,1] - self.maslog.iloc[0,1]).round(2)),
         'Growth : {}%'.format(pctg.round(2)),
         'Buy/Hold Growth : {}%'.format(bhpct.round(2)),
         'Beta (asset-relative) : {}'.format(beta.round(2)),
@@ -294,7 +294,7 @@ class MeanReversion:
             print("Exiting gracefully. Closing open positions...")
             self.CTRLC()
         finally:
-            self.maslog = pd.DataFrame(self.maslog,index=self.maslog['Time'])
+            self.maslog = pd.DataFrame(self.maslog)
             x = self.stratstats()
             print(x[0],x[1])
             self.plots()
